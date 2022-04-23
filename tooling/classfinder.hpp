@@ -46,12 +46,8 @@ public:
     assert(!ec && "error opening file");
     for (auto &ref : m_classes) {
       // ref.Generate(m_context, os);
-      try {
-        auto generator = m_generators->mockGet("some_generator");
-        generator->generate(m_context, os, ref);
-      } catch (const std::runtime_error &err) {
-        llvm::errs() << err.what() << '\n';
-      }
+      auto generator = m_generators->mockGet("some_generator");
+      generator->generate(m_context, os, ref);
     }
   }
 
@@ -59,7 +55,7 @@ public:
 protected:
   void FoundRecord(clang::CXXRecordDecl const *record) {
     if (m_fileName.empty()) {
-      m_fileName = m_sourceman->getFilename(record->getLocation());
+      m_fileName = m_sourceman->getFilename(record->getLocation()).str();
       m_fileName.erase(m_fileName.end() - 4, m_fileName.end());
       m_fileName.append(".generated.hxx");
     }

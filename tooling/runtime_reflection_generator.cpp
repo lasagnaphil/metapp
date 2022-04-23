@@ -58,10 +58,10 @@ PropertyAnnotations GenerateFieldAttributes(StringRef const &attr) {
 
   PropertyAnnotations ret;
   auto setAttributes = [&ret](StringRef const &s) -> bool {
-    if (s.equals_lower("serialized")) {
+    if (s.equals("serialized")) {
       return (ret.serialized = true);
 
-    } else if (s.startswith_lower("width")) {
+    } else if (s.startswith("width")) {
       size_t idx = s.find_first_of('=');
       auto sref = s.substr(idx + 1);
       unsigned width;
@@ -69,7 +69,7 @@ PropertyAnnotations GenerateFieldAttributes(StringRef const &attr) {
       ret.width = width;
       return true;
 
-    } else if (s.equals_lower("cstring")) {
+    } else if (s.equals("cstring")) {
       return (ret.isCString = true);
     }
 
@@ -86,7 +86,7 @@ FunctionAnnotations GenerateFunctionAttributes(StringRef const &attr) {
 
   FunctionAnnotations ret;
   auto setAttributes = [&ret](StringRef const &s) -> bool {
-    if (s.equals_lower("replicated")) {
+    if (s.equals("replicated")) {
       return (ret.replicated = true);
     }
 

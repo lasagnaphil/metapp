@@ -1,5 +1,5 @@
-# Fetcy and set up third party dependencies used for TemplateGenerator
-include("third_party/install.cmake")
+add_subdirectory(third_party/inja)
+target_compile_definitions(inja INTERFACE INJA_NOEXCEPTION)
 
 # Tooling 
 add_subdirectory(tooling)

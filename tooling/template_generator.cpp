@@ -25,8 +25,9 @@ void TemplateGenerator::setup() {
 
   std::ifstream input(input_filename);
 
-  if (input.is_open() == false) {
-    throw std::runtime_error{"Could not open file " + input_filename};
+  if (!input.is_open()) {
+    llvm::errs() << "Could not open file " << input_filename << '\n';
+    std::abort();
   }
   m_template = std::string{std::istreambuf_iterator<char>(input),
                            std::istreambuf_iterator<char>()};

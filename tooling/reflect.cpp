@@ -19,17 +19,21 @@ static llvm::cl::alias outputAlias("o", llvm::cl::cat{g_ToolCategory},
 
 int main(int argc, const char **argv) {
   /* Parse command-line options. */
-  CommonOptionsParser optionsParser(argc, argv, g_ToolCategory);
-  if (optionsParser.getSourcePathList().size() > 1) {
+  auto optionsParser = CommonOptionsParser::create(argc, argv, g_ToolCategory);
+  if (auto E = optionsParser.takeError()) {
+    llvm::errs() << toString(std::move(E)) << '\n';
+    return 1;
+  }
+  if (optionsParser->getSourcePathList().size() > 1) {
     llvm::errs()
         << "More than one input file is currently not supported. Exiting.\n";
     return 1;
   }
-  ClangTool tool(optionsParser.getCompilations(),
-                 optionsParser.getSourcePathList());
+  ClangTool tool(optionsParser->getCompilations(),
+                 optionsParser->getSourcePathList());
 
-#if 0
-    auto &db = optionsParser.getCompilations();
+#if 1
+    auto &db = optionsParser->getCompilations();
     for (auto &cmd : db.getAllCompileCommands()) {
         printf("CommandLine:");
         for (auto &opt : cmd.CommandLine)
