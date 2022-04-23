@@ -24,11 +24,13 @@ int main(int argc, const char **argv) {
     llvm::errs() << toString(std::move(E)) << '\n';
     return 1;
   }
+  /*
   if (optionsParser->getSourcePathList().size() > 1) {
     llvm::errs()
         << "More than one input file is currently not supported. Exiting.\n";
     return 1;
   }
+   */
   ClangTool tool(optionsParser->getCompilations(),
                  optionsParser->getSourcePathList());
 
@@ -45,10 +47,8 @@ int main(int argc, const char **argv) {
     }
 #endif
 
-  auto generators = metapp::init_generators();
-
   /* The classFinder class is invoked as callback. */
-  ClassFinder classFinder{outputOption.getValue(), std::move(generators)};
+  ClassFinder classFinder{"classdb.xml"};
   MatchFinder finder;
 
   /* Search for all records (class/struct) with an 'annotate' attribute. */
