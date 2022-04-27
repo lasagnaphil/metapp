@@ -7,13 +7,50 @@
 #include "reflectedclass.hpp"
 #include "utils.hpp"
 
-#include <pugixml.hpp>
+#include <nlohmann/json.hpp>
+using namespace nlohmann;
+
+#include <inja/inja.hpp>
+
+#include <fstream>
+
+inline std::vector<std::string> split_string_clean(const std::string& s, char delim) {
+  int start = 0;
+  std::vector<std::string> tokens;
+  for (int i = 0; i <= s.size(); i++) {
+    if (i == s.size() || s[i] == delim) {
+      int k = start;
+      while (s[k] == ' ') k++;
+      int l = i-1;
+      while (s[l] == ' ') l--;
+      tokens.push_back(s.substr(k, l-k+1));
+      start = ++i;
+    }
+  }
+  return tokens;
+}
+
+inline std::string get_annotation_metadata(clang::Decl::attr_range range) {
+  for (auto attr : range) {
+    if (attr->getKind() == clang::attr::Annotate) {
+      SmallString<64> str;
+      raw_svector_ostream os(str);
+      clang::LangOptions langopts;
+      clang::PrintingPolicy policy(langopts);
+      attr->printPretty(os, policy);
+      StringRef annotation = str.slice(26, str.size() - 4);
+      return annotation.split(';').second.str();
+    }
+  }
+  return "";
+}
 
 class ClassFinder : public MatchFinder::MatchCallback {
 public:
   // ClassFinder() = default;
-  ClassFinder(std::string fileName)
-      : m_exportFileName{std::move(fileName)} {}
+  ClassFinder(std::string fileName, std::vector<std::string> tmplNames)
+      : m_exportFileName{std::move(fileName)},
+        m_tmplFileNames{std::move(tmplNames)} {}
 
   virtual void run(MatchFinder::MatchResult const &result) override {
     m_context = result.Context;
@@ -39,47 +76,69 @@ public:
 
   virtual void onEndOfTranslationUnit() override {
     // Export XML file
-    pugi::xml_document doc;
-    auto el_db = doc.append_child("ClassDB");
+    json el_db = json::object();
     for (auto &ref : m_classes) {
-      auto el_class = el_db.append_child("Class");
+      json el_class = json::object();
       auto class_name = ref.m_record->getNameAsString();
-      el_class.append_attribute("name") = class_name.c_str();
       if (ref.m_namespace) {
-        auto namespace_name = ref.m_namespace->getNameAsString();
-        el_class.append_attribute("namespace") = namespace_name.c_str();
+        el_class["namespace"] = ref.m_namespace->getNameAsString();
       }
-      for (auto& attr : ref.m_record->attrs()) {
-        auto el_attr = el_class.append_child("Attribute");
-        auto attr_name = attr->getAttrName()->getName().str();
-        el_attr.append_attribute("name") = attr_name.c_str();
-      }
+      auto attrs_str = get_annotation_metadata(ref.m_record->attrs());
+      el_class["attrs"] = split_string_clean(attrs_str, ',');
       for (auto& base : ref.m_record->bases()) {
-        auto base_class_name = base.getType().getAsString();
-        el_class.append_attribute("base") = base_class_name.c_str();
+        el_class["base"] = base.getType().getTypePtr()->getAsRecordDecl()->getNameAsString();
         break; // Assume there is only one base class
       }
+      el_class["children"] = json::array();
+      el_class["descendants"] = json::array();
+      json el_fields = json::array();
       for (auto& field : ref.m_fields) {
-        auto el_field = el_class.append_child("Field");
-        auto field_name = field->getNameAsString();
-        el_field.append_attribute("name") = field_name.c_str();
-        auto field_type = field->getType().getAsString();
-        el_field.append_attribute("type") = field_type.c_str();
+        json el_field = json::object();
+        el_field["name"] = field->getNameAsString();
+        el_field["type"] = field->getType().getAsString();
+        el_field["attrs"] = get_annotation_metadata(field->attrs());
+        el_fields.push_back(el_field);
       }
+      el_class["fields"] = el_fields;
+      json el_functions = json::array();
       for (auto& fn : ref.m_functions) {
-        auto el_fn = el_class.append_child("Function");
-        auto fn_name = fn->getNameAsString();
-        el_fn.append_attribute("name") = fn_name.c_str();
-        for (auto param : fn->parameters()) {
-          auto el_arg = el_fn.append_child("Argument");
-          auto param_name = param->getNameAsString();
-          el_arg.append_attribute("name") = param_name.c_str();
-          auto param_type = param->getType().getAsString();
-          el_arg.append_attribute("type") = param_type.c_str();
+        json el_fn = json::object();
+        el_fn["name"] = fn->getNameAsString();
+        json el_params = json::array();
+        for (auto& param : fn->parameters()) {
+          json el_param = json::object();
+          el_param["name"] = param->getNameAsString();
+          el_param["type"] = param->getType().getAsString();
+          el_params.push_back(el_param);
         }
+        el_fn["params"] = el_params;
+        el_fn["attrs"] = get_annotation_metadata(fn->attrs());
+        el_functions.push_back(el_fn);
       }
+      el_class["functions"] = el_functions;
+
+      el_db[class_name] = el_class;
     }
-    doc.save_file(m_exportFileName.c_str());
+
+    std::ofstream ofs(m_exportFileName);
+    ofs << el_db.dump(4);
+
+    json data;
+    data["class_db"] = el_db;
+
+    inja::Environment env;
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
+    for (const auto& tmplFileName : m_tmplFileNames) {
+      auto res = env.render_file(tmplFileName, data);
+      auto outputFileName = tmplFileName;
+      auto ext_loc = outputFileName.rfind('.');
+      outputFileName.erase(ext_loc, outputFileName.size() - ext_loc);
+      std::cerr << "Generating " << outputFileName << " from " << tmplFileName
+                << "..." << std::endl;
+      std::ofstream ofs(outputFileName);
+      ofs << res;
+    }
   }
 
 
@@ -111,7 +170,9 @@ protected:
   clang::SourceManager *m_sourceman;
   std::vector<ReflectedClass> m_classes;
   std::string m_fileName;
+
   std::string m_exportFileName;
+  std::vector<std::string> m_tmplFileNames;
 };
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_METAPP_TOOLING_CLASSFINDER_HPP

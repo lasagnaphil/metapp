@@ -19,4 +19,4 @@ add_clang_executable(mpp
   utils.hpp
 )
 
-target_link_libraries(mpp PRIVATE inja pugixml-static clangTooling clangBasic clangASTMatchers)
+target_link_libraries(mpp PRIVATE inja clangTooling clangBasic clangASTMatchers)

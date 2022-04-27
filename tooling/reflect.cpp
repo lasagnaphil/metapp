@@ -9,13 +9,13 @@
 llvm::cl::OptionCategory g_ToolCategory("Metapp options");
 static llvm::cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
 static llvm::cl::opt<std::string>
-    outputOption("output", llvm::cl::cat{g_ToolCategory},
-                 llvm::cl::desc{"Set the output file name"},
-                 llvm::cl::value_desc{"filename"});
-static llvm::cl::alias outputAlias("o", llvm::cl::cat{g_ToolCategory},
-                                   llvm::cl::desc{"Alias for output"},
-                                   llvm::cl::value_desc{"filename"},
-                                   llvm::cl::aliasopt{outputOption});
+    inputOption("input", llvm::cl::cat{g_ToolCategory},
+                llvm::cl::desc{"Set the input header file name"},
+                llvm::cl::value_desc{"filename"});
+static llvm::cl::alias inputAlias("i", llvm::cl::cat{g_ToolCategory},
+                                  llvm::cl::desc{"Alias for input header"},
+                                  llvm::cl::value_desc{"filename"},
+                                  llvm::cl::aliasopt{inputOption});
 
 int main(int argc, const char **argv) {
   /* Parse command-line options. */
@@ -31,10 +31,14 @@ int main(int argc, const char **argv) {
     return 1;
   }
    */
+  std::vector<std::string> headers = {inputOption.getValue()};
   ClangTool tool(optionsParser->getCompilations(),
-                 optionsParser->getSourcePathList());
+                 headers);
 
-#if 1
+  // std::vector<std::string> templates = optionsParser->getSourcePathList();
+  std::string output = optionsParser->getSourcePathList().front();
+
+#if 0
     auto &db = optionsParser->getCompilations();
     for (auto &cmd : db.getAllCompileCommands()) {
         printf("CommandLine:");
@@ -48,7 +52,7 @@ int main(int argc, const char **argv) {
 #endif
 
   /* The classFinder class is invoked as callback. */
-  ClassFinder classFinder{"classdb.xml"};
+  ClassFinder classFinder{output, {}};
   MatchFinder finder;
 
   /* Search for all records (class/struct) with an 'annotate' attribute. */
